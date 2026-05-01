@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 
 import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,16 +16,16 @@ from .url_validator import validate_url
 router = APIRouter()
 
 # In-memory cache (simulates Redis for prototype)
-redirect_cache: dict[str, str] = {}
+redirect_cache: dict[str, tuple[str, datetime | None]] = {}
 
 BASE_URL = "http://localhost:8000"
 
 
 @router.post("/api/qr/create", response_model=CreateResponse)
 def create_qr(req: CreateRequest, db: Session = Depends(get_db)):
-    try:                                                                                                                                                           
-        normalized_url = validate_url(req.url)                
-    except ValueError as e:                                                                                                                                        
+    try:
+        normalized_url = validate_url(req.url)
+    except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     token = generate_token(normalized_url, db)
 
@@ -40,7 +40,7 @@ def create_qr(req: CreateRequest, db: Session = Depends(get_db)):
     short_url = f"{BASE_URL}/r/{token}"
 
     # Warm cache
-    redirect_cache[token] = normalized_url
+    redirect_cache[token] = (normalized_url, req.expires_at)
 
     return CreateResponse(
         token=token,
@@ -53,7 +53,6 @@ def create_qr(req: CreateRequest, db: Session = Depends(get_db)):
 @router.get("/r/{token}")
 def redirect(token: str, request: Request, db: Session = Depends(get_db)):
     """Redirect fallback flow: Cache -> DB -> 404/410 (from slides mermaid diagram)"""
-    # TODO: Implement this function
     #
     # Design decision: the redirect path is the hottest path in the system, so
     # we use a cache-first strategy (Cache -> DB -> 404/410) to minimize DB load
@@ -64,7 +63,29 @@ def redirect(token: str, request: Request, db: Session = Depends(get_db)):
     #    RedirectResponse(status_code=302).
     # 2. On miss, query the DB: raise 404 if not found, 410 if is_deleted or
     #    past expires_at; otherwise warm the cache, _record_scan(), and 302.
-    raise NotImplementedError("redirect() is not yet implemented")
+    cached_entry = redirect_cache.get(token)
+    if cached_entry is not None:
+        cached_url, cached_expires_at = cached_entry
+        if _is_expired(cached_expires_at):
+            redirect_cache.pop(token, None)
+            raise HTTPException(status_code=410, detail="Expired")
+
+        _record_scan(token, request, db)
+        return RedirectResponse(url=cached_url, status_code=302)
+
+    mapping = db.query(UrlMapping).filter(UrlMapping.token == token).first()
+    if mapping is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    if mapping.is_deleted:
+        raise HTTPException(status_code=410, detail="Deleted")
+
+    if _is_expired(mapping.expires_at):
+        raise HTTPException(status_code=410, detail="Expired")
+
+    redirect_cache[token] = (mapping.original_url, mapping.expires_at)
+    _record_scan(token, request, db)
+    return RedirectResponse(url=mapping.original_url, status_code=302)
 
 
 @router.get("/api/qr/{token}", response_model=QRInfoResponse)
@@ -155,3 +176,13 @@ def _record_scan(token: str, request: Request, db: Session):
     )
     db.add(event)
     db.commit()
+
+
+def _is_expired(expires_at: datetime | None) -> bool:
+    if expires_at is None:
+        return False
+
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    return expires_at <= datetime.now(timezone.utc)
