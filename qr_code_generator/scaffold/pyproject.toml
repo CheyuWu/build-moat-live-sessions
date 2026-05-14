@@ -1,0 +1,11 @@
+[project]
+name = "qr-code-generator"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.115.6",
+    "pydantic==2.13.3",
+    "qrcode[pil]==8.0",
+    "sqlalchemy==2.0.36",
+    "uvicorn==0.34.0",
+]

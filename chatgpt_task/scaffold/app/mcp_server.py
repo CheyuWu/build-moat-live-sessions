@@ -1,10 +1,10 @@
 """MCP server for the task scheduler.
 
 Run as a stdio MCP server:
-    python -m app.mcp_server
+    uv run python -m app.mcp_server
 
 Or test with the inspector:
-    npx @modelcontextprotocol/inspector python -m app.mcp_server
+    npx @modelcontextprotocol/inspector uv run python -m app.mcp_server
 """
 
 import asyncio

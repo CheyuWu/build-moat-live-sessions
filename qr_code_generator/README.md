@@ -18,13 +18,11 @@
 
 ## Guided Track Setup
 
-**Prerequisite:** Python 3.10 or higher
+**Prerequisite:** Python 3.10 or higher and `uv`
 
 ```bash
 cd scaffold
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Files to Fill In
@@ -38,7 +36,7 @@ pip install -r requirements.txt
 ### Run and Verify
 
 ```bash
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 Then run the verification tests from `PROMPT.md`.

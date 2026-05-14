@@ -18,11 +18,11 @@
 
 ## Guided Track Setup
 
+**Prerequisite:** Python 3.10 or higher and `uv`
+
 ```bash
 cd scaffold
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
 You also need **Node.js** for `npx` (used by the MCP inspector for verification).
@@ -39,7 +39,7 @@ You also need **Node.js** for `npx` (used by the MCP inspector for verification)
 The prototype is a real MCP stdio server. Verify with the MCP inspector (no Claude needed):
 
 ```bash
-npx @modelcontextprotocol/inspector python -m app.mcp_server
+npx @modelcontextprotocol/inspector uv run python -m app.mcp_server
 ```
 
 This opens a browser GUI — see `PROMPT.md` Verification section for the full test flow. Once the inspector tests pass, you can optionally connect to Claude Desktop / Claude Code (instructions also in `PROMPT.md`).

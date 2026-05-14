@@ -38,7 +38,7 @@ Your prototype is a real MCP server. Test it with the MCP inspector — no Claud
 ### 1. Start the server (sanity check)
 
 ```bash
-python -m app.mcp_server
+uv run python -m app.mcp_server
 ```
 
 The process should hang waiting on stdin (it's a stdio MCP server — that's correct). Ctrl+C to stop. If you see an `ImportError` or other crash, fix that first.
@@ -48,7 +48,7 @@ The process should hang waiting on stdin (it's a stdio MCP server — that's cor
 Requires Node.js (uses `npx`).
 
 ```bash
-npx @modelcontextprotocol/inspector python -m app.mcp_server
+npx @modelcontextprotocol/inspector uv run python -m app.mcp_server
 ```
 
 This opens a browser GUI (usually `http://localhost:5173`).
@@ -92,4 +92,4 @@ Then chat:
 
 ## Suggested Tech Stack
 
-Python + the official `mcp` SDK is recommended (already in `requirements.txt` for the Guided Track). Challenge Track may use any language with an MCP SDK.
+Python + the official `mcp` SDK is recommended (already in `pyproject.toml` for the Guided Track). Challenge Track may use any language with an MCP SDK.
