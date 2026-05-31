@@ -6,17 +6,16 @@ from langchain_openai import ChatOpenAI
 from . import indexer
 
 
-SYSTEM_PROMPT = """
-# TODO: Write the system prompt for the knowledge base Q&A assistant.
-#
-# Design decision: Hallucination defense for raw Markdown context.
-#
-# Hints:
-# 1. Only answer using the provided CONTEXT.
-# 2. Cite only exact source IDs shown in [Source: ...].
-#    Each source ID uses filename#heading format.
-# 3. Define fallback behavior when the context lacks the answer.
-# 4. Explicitly prohibit guessing or outside knowledge.
+MAX_QUESTION_LEN = 512
+
+SYSTEM_PROMPT = """You are a knowledge base Q&A assistant.
+Answer questions using ONLY the provided CONTEXT below.
+
+Rules:
+1. Only answer using information found in the CONTEXT.
+2. Cite sources using only the exact IDs shown as [Source: filename#heading].
+3. If the context does not contain the answer, respond with: "I don't know based on the provided knowledge base." Do not attempt to use any information not in the CONTEXT.
+4. Do not fabricate sources. Only use the sources provided in the CONTEXT. If you cannot find the answer in the CONTEXT, do not cite any sources.
 """
 
 _llm = None
@@ -33,20 +32,28 @@ def get_llm():
     return _llm
 
 
-def build_prompt(query: str, ranked_sections: list) -> str:
-    # TODO: Build the prompt from top-ranked Markdown sections.
-    #
-    # Design decision: Put raw Markdown sections into CONTEXT with citations.
-    #
-    # Hints:
-    # 1. Include [Source: filename#heading] before each section.
-    # 2. Include heading_path so the model sees the document structure.
-    # 3. Include only top sections passed into this function.
-    # 4. Place CONTEXT before QUESTION.
-    return f"CONTEXT:\n(no context)\n\nQUESTION:\n{query}"
+def build_prompt(query: str, ranked_sections: list[tuple[indexer.Section, float]]) -> str:
+    context_parts = []
+    for section, _ in ranked_sections:
+        heading_path = " > ".join(section.heading_path)
+        content = section.content.strip()
+        context_parts.append(
+            f"[Source: {section.id}]\n"
+            f"Path: {heading_path}\n\n"
+            f"{content}"
+        )
+
+    context = "\n\n---\n\n".join(context_parts)
+    return f"CONTEXT:\n{context}\n\nQUESTION:\n{query}"
 
 
 def query(question: str) -> dict:
+    question = question.strip()
+    if len(question) > MAX_QUESTION_LEN:
+        return {"answer": f"Question is too long (max {MAX_QUESTION_LEN} characters).", "sources": []}
+    if "[Source:" in question:
+        return {"answer": "Invalid question format.", "sources": []}
+
     if not indexer.sections:
         return {
             "answer": "The knowledge base has not been indexed yet. Call POST /index first.",
