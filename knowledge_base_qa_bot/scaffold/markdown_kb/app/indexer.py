@@ -131,7 +131,7 @@ def write_index_json(index_path: Path = INDEX_PATH) -> None:
 
 def rebuild_stats() -> None:
     global doc_freq, avg_doc_len, files_indexed
-    doc_freq.clear()
+    doc_freq.clear() 
 
     files_indexed = len({s.file for s in sections})
     for section in sections:
@@ -165,7 +165,7 @@ def build_index(docs_dir: Path = DOCS_DIR) -> tuple[int, int]:
         files_indexed = 0
         rebuild_stats()
         write_index_json()
-        return files_indexed, len(sections)
+    return files_indexed, len(sections)
 
 
 def bm25_score(

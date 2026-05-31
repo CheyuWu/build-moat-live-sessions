@@ -1,22 +1,18 @@
 import os
 
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.schema import Document, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from . import indexer
 
+SYSTEM_PROMPT = """You are a knowledge base Q&A assistant.
+Answer questions using ONLY the provided CONTEXT below.
 
-SYSTEM_PROMPT = """
-# TODO: Write the system prompt for the knowledge base Q&A assistant.
-#
-# Design decision: Hallucination defense for retrieved chunks.
-#
-# Hints:
-# 1. Only answer using the provided CONTEXT.
-# 2. Cite only exact source IDs shown in [Source: ...].
-#    Each source ID uses filename#heading format.
-# 3. Define fallback behavior when the context lacks the answer.
-# 4. Explicitly prohibit guessing or outside knowledge.
+Rules:
+1. Only answer using information found in the CONTEXT.
+2. Cite sources using only the exact IDs shown as [Source: filename#heading].
+3. If the context does not contain the answer, respond with: "I don't know based on the provided knowledge base." Do not attempt to use any information not in the CONTEXT.
+4. Do not fabricate sources. Only use the sources provided in the CONTEXT. If you cannot find the answer in the CONTEXT, do not cite any sources.
 """
 
 _llm = None
@@ -33,17 +29,20 @@ def get_llm():
     return _llm
 
 
-def build_prompt(query: str, ranked_chunks: list) -> str:
-    # TODO: Build the prompt from retrieved vector chunks.
-    #
-    # Design decision: Give the LLM enough context without flooding it.
-    #
-    # Hints:
-    # 1. Include [Source: filename#heading] before each chunk.
-    # 2. Include retrieval distance or score only for debugging.
-    # 3. Use top-k chunks passed into this function.
-    # 4. Place CONTEXT before QUESTION.
-    return f"CONTEXT:\n(no context)\n\nQUESTION:\n{query}"
+def build_prompt(query: str, ranked_chunks: list[tuple[Document, float]]) -> str:
+    context_parts = []
+
+    for doc, _ in ranked_chunks:
+        source = doc.metadata.get("source", "unknown")
+        content = doc.page_content
+
+        context_parts.append(f"[Source: {source}]\n\n{content}")
+
+    context_text = (
+        "\n\n---\n\n".join(context_parts) if context_parts else "(no context)"
+    )
+
+    return f"CONTEXT:\n{context_text}\n\nQUESTION:\n{query}"
 
 
 def query(question: str) -> dict:
@@ -60,10 +59,12 @@ def query(question: str) -> dict:
             "sources": [],
         }
 
-    response = get_llm().invoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=build_prompt(question, ranked_chunks)),
-    ])
+    response = get_llm().invoke(
+        [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=build_prompt(question, ranked_chunks)),
+        ]
+    )
 
     sources = [
         {
